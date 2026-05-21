@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { fetchApartmentEmails } from "@/lib/actions/inbox";
+import { fetchApartmentEmails, type ParsedEmail } from "@/lib/actions/inbox";
 import { EmailInboxList } from "@/components/EmailInboxList";
 import { InboxHeader } from "@/components/InboxHeader";
 
@@ -11,7 +11,7 @@ export default async function InboxPage() {
     redirect("/");
   }
 
-  let emails;
+  let emails: ParsedEmail[] = [];
   let error: string | null = null;
 
   try {
