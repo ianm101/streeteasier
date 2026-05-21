@@ -132,7 +132,7 @@ export function ApartmentsTable({
       {/* Filters */}
       <div className="flex gap-4">
         <div className="w-48">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value || "all")}>
             <SelectTrigger>
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
@@ -148,7 +148,7 @@ export function ApartmentsTable({
         </div>
 
         <div className="w-48">
-          <Select value={sortBy} onValueChange={setSortBy}>
+          <Select value={sortBy} onValueChange={(value) => setSortBy(value || "date")}>
             <SelectTrigger>
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>

@@ -3,7 +3,16 @@ import Google from "next-auth/providers/google";
 import { isEmailAllowed } from "@/lib/auth/allowlist";
 import { prisma } from "@/lib/prisma";
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+declare module "@auth/core/types" {
+  interface User {
+    id: string;
+  }
+  interface Session {
+    user: User;
+  }
+}
+
+const config = {
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -27,7 +36,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     strategy: "jwt"
   },
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account, profile }: any) {
       // Check if email is in allowlist
       if (!user.email || !isEmailAllowed(user.email)) {
         return false;
@@ -70,7 +79,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return false;
       }
     },
-    async jwt({ token, user, account, profile }) {
+    async jwt({ token, user, account, profile }: any) {
       // On sign in, fetch the user ID from database
       if (user?.email) {
         const dbUser = await prisma.user.findUnique({
@@ -87,7 +96,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       return token;
     },
-    async session({ session, token }) {
+    async session({ session, token }: any) {
       if (session.user && token.id) {
         session.user.id = token.id as string;
       }
@@ -97,4 +106,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   pages: {
     signIn: "/"
   }
-});
+};
+
+// @ts-ignore - NextAuth v5 beta has callable type inference issues in production builds
+export const { handlers, signIn, signOut, auth } = NextAuth(config);
