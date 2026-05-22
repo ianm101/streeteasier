@@ -99,6 +99,10 @@ model Apartment {
   salientFeatures    String[]
   notes              String?
 
+  // Email thread tracking for updates
+  emailThreadId      String?   // Gmail thread ID to detect new messages
+  lastEmailAt        DateTime? // Timestamp of last email in thread
+
   addedById     String
   addedBy       User     @relation("AddedBy", fields: [addedById], references: [id])
   pointPersonId String?
@@ -107,6 +111,10 @@ model Apartment {
   amenities     ApartmentAmenity[]
   rankings      Ranking[]
   apartmentNotes Note[]
+  actionItems   ActionItem[]
+  timeline      Timeline[]
+  documents     Document[]
+  fileAttachments FileAttachment[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -139,4 +147,69 @@ model Note {
   user        User      @relation(fields: [userId], references: [id])
   body        String
   createdAt   DateTime  @default(now())
+}
+
+model ActionItem {
+  id          String    @id @default(cuid())
+  apartmentId String
+  apartment   Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+
+  type        String    // "application_pending", "schedule_tour", "submit_documents", "sign_lease", "follow_up"
+  description String
+  status      String    @default("pending") // "pending", "completed", "overdue"
+  dueDate     DateTime?
+  link        String?   // Application URL, document link, etc.
+  fileUrl     String?   // Attached file URL
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Timeline {
+  id          String    @id @default(cuid())
+  apartmentId String
+  apartment   Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+
+  event       String    // "inquiry_sent", "tour_scheduled", "tour_completed", "application_submitted", "application_approved", "lease_signed"
+  description String
+  occurredAt  DateTime  @default(now())
+
+  createdAt   DateTime  @default(now())
+}
+
+model Document {
+  id          String    @id @default(cuid())
+  apartmentId String
+  apartment   Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+
+  name        String    // "Photo ID", "Pay Stubs", "Bank Statements", "W2", "Tax Transcript"
+  required    Boolean   @default(true)
+  status      String    @default("pending") // "pending", "uploaded", "approved", "rejected"
+  fileUrl     String?
+  notes       String?   // Additional notes about the document
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model FileAttachment {
+  id          String    @id @default(cuid())
+  apartmentId String
+  apartment   Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+
+  name        String    // Original filename or description
+  type        String    // "application_pdf", "lease_agreement", "email_attachment", "web_application_url", "other"
+  url         String    // Storage URL or web application URL
+  mimeType    String?   // MIME type for downloaded files
+  size        Int?      // File size in bytes
+  source      String    @default("manual_upload") // "manual_upload", "gmail_attachment", "web_url"
+
+  // Gmail attachment metadata
+  gmailMessageId String? // If from Gmail, the message ID
+  gmailAttachmentId String? // Gmail's attachment ID
+
+  notes       String?   // User notes about this file
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }

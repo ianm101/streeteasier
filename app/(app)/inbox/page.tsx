@@ -24,21 +24,22 @@ export default async function InboxPage() {
   const highRelevanceCount = emails.filter((email) => (email.relevanceScore || 0) >= 40).length;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <InboxHeader emailCount={emails.length} highRelevanceCount={highRelevanceCount} />
+    <div className="min-h-screen bg-white">
+      <div className="max-w-[1400px] mx-auto px-8 py-12">
+        <InboxHeader emailCount={emails.length} highRelevanceCount={highRelevanceCount} />
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-          <h3 className="font-semibold text-red-900 mb-2">Error Loading Emails</h3>
-          <p className="text-sm text-red-700">{error}</p>
-          <p className="text-xs text-red-600 mt-2">
-            Make sure you've authorized Gmail access by signing in with Google and
-            that the Gmail API is enabled in your Google Cloud Console.
-          </p>
-        </div>
-      )}
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-600 p-6 mb-8">
+            <h3 className="font-bold uppercase tracking-wide mb-2">Error Loading Emails</h3>
+            <p className="text-sm mb-2">{error}</p>
+            <p className="text-xs text-gray-600 uppercase tracking-wide">
+              Authorize Gmail access by signing in with Google
+            </p>
+          </div>
+        )}
 
-      <EmailInboxList emails={emails} />
+        <EmailInboxList emails={emails} />
+      </div>
     </div>
   );
 }

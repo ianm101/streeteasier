@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, MapPin, Bed, Bath, Maximize, DollarSign, ExternalLink, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, MapPin, Bed, Bath, Maximize, DollarSign, ExternalLink, AlertCircle, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { APARTMENT_STATUS_LABELS } from "@/lib/constants/statuses";
 
@@ -40,6 +40,21 @@ interface ApartmentCardProps {
         name: string | null;
       };
     }>;
+    actionItems?: Array<{
+      id: string;
+      type: string;
+      description: string;
+      status: string;
+      dueDate: Date | null;
+      link: string | null;
+      createdAt: Date;
+    }>;
+    fileAttachments?: Array<{
+      id: string;
+      name: string;
+      type: string;
+      url: string;
+    }>;
   };
   currentUserId: string;
 }
@@ -66,11 +81,9 @@ export function ApartmentCard({ apartment, currentUserId }: ApartmentCardProps) 
   // Get latest note
   const latestNote = apartment.apartmentNotes[0];
 
-  // Check for action items in notes
-  const hasActionItem = latestNote?.body.toLowerCase().includes("todo") ||
-                        latestNote?.body.toLowerCase().includes("follow up") ||
-                        latestNote?.body.toLowerCase().includes("schedule") ||
-                        latestNote?.body.toLowerCase().includes("call back");
+  // Get pending action items
+  const pendingActionItems = apartment.actionItems?.filter(item => item.status === "pending") || [];
+  const hasActionItem = pendingActionItems.length > 0;
 
   // Get user's ranking
   const myRanking = apartment.rankings.find(r => r.user.id === currentUserId);
@@ -80,9 +93,9 @@ export function ApartmentCard({ apartment, currentUserId }: ApartmentCardProps) 
 
   return (
     <Link href={`/apartments/${apartment.id}`}>
-      <div className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-zinc-200 hover:border-zinc-300 h-full flex flex-col">
+      <div className="group bg-white hover:bg-gray-50 transition-colors border-2 border-black h-full flex flex-col">
         {/* Image Carousel */}
-        <div className="relative h-64 bg-zinc-100 overflow-hidden">
+        <div className="relative h-64 bg-gray-100 overflow-hidden">
           <Image
             src={images[currentImageIndex]}
             alt={apartment.address}
@@ -100,28 +113,28 @@ export function ApartmentCard({ apartment, currentUserId }: ApartmentCardProps) 
             <>
               <button
                 onClick={prevImage}
-                className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute left-0 top-1/2 -translate-y-1/2 bg-black hover:bg-gray-900 p-3 opacity-0 group-hover:opacity-100 transition-opacity"
                 aria-label="Previous image"
               >
-                <ChevronLeft className="h-5 w-5 text-zinc-800" />
+                <ChevronLeft className="h-5 w-5 text-white" />
               </button>
               <button
                 onClick={nextImage}
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute right-0 top-1/2 -translate-y-1/2 bg-black hover:bg-gray-900 p-3 opacity-0 group-hover:opacity-100 transition-opacity"
                 aria-label="Next image"
               >
-                <ChevronRight className="h-5 w-5 text-zinc-800" />
+                <ChevronRight className="h-5 w-5 text-white" />
               </button>
 
               {/* Image indicators */}
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
                 {images.map((_, idx) => (
                   <div
                     key={idx}
-                    className={`h-1.5 rounded-full transition-all ${
+                    className={`h-2 transition-all ${
                       idx === currentImageIndex
-                        ? "w-6 bg-white"
-                        : "w-1.5 bg-white/60"
+                        ? "w-8 bg-white"
+                        : "w-2 bg-white/50"
                     }`}
                   />
                 ))}
@@ -130,83 +143,132 @@ export function ApartmentCard({ apartment, currentUserId }: ApartmentCardProps) 
           )}
 
           {/* Status badge */}
-          <div className="absolute top-3 left-3">
-            <span className="bg-white/95 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium text-zinc-800 shadow-sm">
+          <div className="absolute top-0 left-0">
+            <span className="bg-black text-white px-4 py-2 text-xs font-bold uppercase tracking-wider">
               {APARTMENT_STATUS_LABELS[apartment.status as keyof typeof APARTMENT_STATUS_LABELS]}
             </span>
           </div>
 
           {/* Ranking badge */}
           {avgRanking && (
-            <div className="absolute top-3 right-3">
-              <span className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-sm">
-                ⭐ {avgRanking}
+            <div className="absolute top-0 right-0">
+              <span className="bg-red-600 text-white px-4 py-2 text-xs font-bold">
+                ★ {avgRanking}
               </span>
             </div>
           )}
         </div>
 
         {/* Content */}
-        <div className="p-5 flex-1 flex flex-col">
+        <div className="p-6 flex-1 flex flex-col">
           {/* Address */}
-          <div className="mb-3">
-            <h3 className="text-xl font-bold text-zinc-900 mb-1 line-clamp-1">
+          <div className="mb-4 pb-4 border-b-2 border-black">
+            <h3 className="text-lg font-bold uppercase tracking-tight mb-2 line-clamp-2">
               {apartment.address}
-              {apartment.unit && <span className="text-zinc-500"> #{apartment.unit}</span>}
+              {apartment.unit && <span className="text-gray-600"> #{apartment.unit}</span>}
             </h3>
             {apartment.neighborhood && (
-              <div className="flex items-center gap-1 text-sm text-zinc-600">
-                <MapPin className="h-4 w-4" />
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-600">
+                <MapPin className="h-3 w-3" />
                 <span>{apartment.neighborhood}{apartment.borough && `, ${apartment.borough}`}</span>
               </div>
             )}
           </div>
 
           {/* Key specs */}
-          <div className="flex items-center gap-4 mb-4 pb-4 border-b border-zinc-100">
+          <div className="flex items-center gap-4 mb-4 pb-4 border-b border-gray-300">
             {apartment.price && (
-              <div className="flex items-center gap-1.5">
-                <DollarSign className="h-4 w-4 text-zinc-500" />
-                <span className="font-semibold text-zinc-900">
+              <div className="flex items-center gap-1">
+                <span className="text-xl font-bold">
                   ${apartment.price.toLocaleString()}
                 </span>
+                <span className="text-xs text-gray-600">/mo</span>
               </div>
             )}
             {apartment.beds !== null && apartment.beds !== undefined && (
-              <div className="flex items-center gap-1.5">
-                <Bed className="h-4 w-4 text-zinc-500" />
-                <span className="text-zinc-700">{apartment.beds} bed</span>
+              <div className="text-sm font-medium">
+                {apartment.beds} BD
               </div>
             )}
             {apartment.baths !== null && apartment.baths !== undefined && (
-              <div className="flex items-center gap-1.5">
-                <Bath className="h-4 w-4 text-zinc-500" />
-                <span className="text-zinc-700">{apartment.baths} bath</span>
+              <div className="text-sm font-medium">
+                {apartment.baths} BA
               </div>
             )}
             {apartment.sqft && (
-              <div className="flex items-center gap-1.5">
-                <Maximize className="h-4 w-4 text-zinc-500" />
-                <span className="text-zinc-700">{apartment.sqft} sqft</span>
+              <div className="text-sm font-medium text-gray-600">
+                {apartment.sqft} SF
               </div>
             )}
           </div>
 
-          {/* Latest update / Summary */}
-          <div className="mb-4 flex-1">
-            {latestNote ? (
-              <div className="bg-zinc-50 rounded-lg p-3 border border-zinc-100">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="text-xs font-medium text-zinc-500 uppercase tracking-wide">
-                    Latest Update
-                  </span>
-                  {hasActionItem && (
-                    <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                      <AlertCircle className="h-3 w-3" />
-                      Action Needed
-                    </span>
+          {/* Action Items */}
+          {pendingActionItems.length > 0 && (
+            <div className="mb-4">
+              <div className="text-xs font-bold uppercase tracking-wider mb-2 text-red-600">
+                ⚠ Action Required
+              </div>
+              {pendingActionItems.slice(0, 2).map((actionItem) => (
+                <div
+                  key={actionItem.id}
+                  className="bg-red-50 border-l-4 border-red-600 p-3 mb-2 last:mb-0"
+                  onClick={(e) => {
+                    if (actionItem.link) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.open(actionItem.link, "_blank");
+                    }
+                  }}
+                >
+                  <p className="text-sm font-medium mb-1">
+                    {actionItem.description}
+                  </p>
+                  {actionItem.link && (
+                    <button
+                      className="text-xs font-bold uppercase tracking-wide hover:underline flex items-center gap-1"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (actionItem.link) {
+                          window.open(actionItem.link, "_blank");
+                        }
+                      }}
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      View Link
+                    </button>
                   )}
                 </div>
+              ))}
+              {pendingActionItems.length > 2 && (
+                <p className="text-xs font-bold uppercase tracking-wide text-gray-600 mt-2">
+                  +{pendingActionItems.length - 2} More
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* AI Summary - Prominently displayed */}
+          {apartment.descriptionSummary && (
+            <div className="mb-4 bg-blue-50 border-l-4 border-blue-600 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-bold uppercase tracking-wide text-blue-900">
+                  AI Summary
+                </span>
+              </div>
+              <p className="text-sm text-zinc-800 line-clamp-3">
+                {apartment.descriptionSummary}
+              </p>
+            </div>
+          )}
+
+          {/* Latest update */}
+          <div className="mb-4 flex-1">
+            {latestNote ? (
+              <div className="bg-zinc-50 p-3 border-l-2 border-zinc-300">
+                <span className="text-xs font-medium text-zinc-500 uppercase tracking-wide block mb-2">
+                  Latest Update
+                </span>
                 <p className="text-sm text-zinc-700 line-clamp-2">
                   {latestNote.body}
                 </p>
@@ -214,17 +276,8 @@ export function ApartmentCard({ apartment, currentUserId }: ApartmentCardProps) 
                   by {latestNote.user.name} • {new Date(latestNote.createdAt).toLocaleDateString()}
                 </p>
               </div>
-            ) : apartment.descriptionSummary ? (
-              <div className="bg-zinc-50 rounded-lg p-3 border border-zinc-100">
-                <span className="text-xs font-medium text-zinc-500 uppercase tracking-wide block mb-2">
-                  Summary
-                </span>
-                <p className="text-sm text-zinc-700 line-clamp-2">
-                  {apartment.descriptionSummary}
-                </p>
-              </div>
             ) : apartment.brokerName ? (
-              <div className="bg-zinc-50 rounded-lg p-3 border border-zinc-100">
+              <div className="bg-zinc-50 p-3 border-l-2 border-zinc-300">
                 <span className="text-xs font-medium text-zinc-500 uppercase tracking-wide block mb-1">
                   Broker
                 </span>
@@ -234,26 +287,36 @@ export function ApartmentCard({ apartment, currentUserId }: ApartmentCardProps) 
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between pt-3 border-t border-zinc-100">
-            <div className="text-sm text-zinc-600">
-              {myRanking ? (
-                <span>Your rating: <span className="font-semibold text-zinc-900">{myRanking.rank}/10</span></span>
-              ) : (
-                <span className="text-zinc-400">Not rated yet</span>
+          <div className="space-y-2">
+            {/* File count badge */}
+            {apartment.fileAttachments && apartment.fileAttachments.length > 0 && (
+              <div className="flex items-center gap-2 text-xs font-medium text-zinc-600 pb-2 border-b border-zinc-100">
+                <Paperclip className="h-3 w-3" />
+                <span>{apartment.fileAttachments.length} {apartment.fileAttachments.length === 1 ? 'file' : 'files'} attached</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-1">
+              <div className="text-sm text-zinc-600">
+                {myRanking ? (
+                  <span>Your rating: <span className="font-semibold text-zinc-900">{myRanking.rank}/10</span></span>
+                ) : (
+                  <span className="text-zinc-400">Not rated yet</span>
+                )}
+              </div>
+              {apartment.listingUrl && (
+                <a
+                  href={apartment.listingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  View Listing
+                </a>
               )}
             </div>
-            {apartment.listingUrl && (
-              <a
-                href={apartment.listingUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
-              >
-                <ExternalLink className="h-4 w-4" />
-                View Listing
-              </a>
-            )}
           </div>
         </div>
       </div>

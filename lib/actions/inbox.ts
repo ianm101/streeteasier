@@ -1,8 +1,8 @@
 "use server";
 
 import { auth } from "@/auth";
-import { searchApartmentEmails, type GmailMessage } from "@/lib/gmail/client";
-import { parseApartmentFromEmail } from "@/lib/ai/apartment-parser";
+import { searchApartmentEmails, getGmailThread, getCombinedThreadBody, type GmailMessage } from "@/lib/gmail/client";
+import { parseApartmentFromEmail, extractActionItemsFromEmail, generateEmailThreadSummary } from "@/lib/ai/apartment-parser";
 import { createApartment } from "./apartments";
 
 export interface ParsedEmail extends GmailMessage {
@@ -132,7 +132,10 @@ export async function parseEmailWithAI(
 
 export async function createApartmentFromParsedData(
   parsedData: ParsedEmail["parsedData"],
-  emailId: string
+  emailId: string,
+  emailBody?: string,
+  emailSubject?: string,
+  threadId?: string
 ): Promise<string> {
   const session = await auth();
   if (!session?.user?.id) {
@@ -165,6 +168,31 @@ export async function createApartmentFromParsedData(
     );
   }
 
+  // Generate AI summary if email body is provided
+  let summary: string | undefined;
+  if (emailBody && emailSubject) {
+    try {
+      summary = await generateEmailThreadSummary(emailBody, emailSubject);
+    } catch (error) {
+      console.error("Error generating summary:", error);
+      // Continue without summary
+    }
+  }
+
+  // Get email date to store as lastEmailAt
+  let lastEmailAt: Date | undefined;
+  if (threadId) {
+    try {
+      const thread = await getGmailThread(session.user.id, threadId);
+      if (thread) {
+        lastEmailAt = thread.lastMessageDate;
+      }
+    } catch (error) {
+      console.error("Error fetching thread for lastEmailAt:", error);
+      // Continue without lastEmailAt
+    }
+  }
+
   const apartmentId = await createApartment({
     address: parsedData.address,
     unit: parsedData.unit || undefined,
@@ -186,7 +214,197 @@ export async function createApartmentFromParsedData(
     pointPersonId: session.user.id,
     amenities: parsedData.amenities.length > 0 ? parsedData.amenities : undefined,
     notes: `Imported from email. AI confidence: ${parsedData.confidence}.\n\n${parsedData.extractedText}`,
+    descriptionSummary: summary,
+    emailThreadId: threadId,
+    lastEmailAt,
   });
 
+  // Extract action items if email body is provided
+  if (emailBody && emailSubject) {
+    try {
+      const extraction = await extractActionItemsFromEmail(emailBody, emailSubject);
+
+      // Create action items
+      for (const actionItem of extraction.actionItems) {
+        await prisma.actionItem.create({
+          data: {
+            apartmentId,
+            type: actionItem.type,
+            description: actionItem.description,
+            dueDate: actionItem.dueDate ? new Date(actionItem.dueDate) : null,
+            link: actionItem.link,
+          },
+        });
+      }
+
+      // Create timeline events
+      for (const timelineEvent of extraction.timelineEvents) {
+        await prisma.timeline.create({
+          data: {
+            apartmentId,
+            event: timelineEvent.event,
+            description: timelineEvent.description,
+            occurredAt: timelineEvent.occurredAt ? new Date(timelineEvent.occurredAt) : new Date(),
+          },
+        });
+      }
+
+      // Create documents
+      for (const doc of extraction.documents) {
+        await prisma.document.create({
+          data: {
+            apartmentId,
+            name: doc.name,
+            required: doc.required,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Error extracting action items:", error);
+      // Continue even if action item extraction fails
+    }
+  }
+
   return apartmentId;
+}
+
+/**
+ * Check for new messages in existing apartment email threads and update apartments accordingly
+ * Returns the number of apartments updated
+ */
+export async function detectAndUpdateEmailThreads(): Promise<number> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+
+  const { prisma } = await import("@/lib/prisma");
+
+  try {
+    // Get all apartments that have an email thread ID
+    const apartments = await prisma.apartment.findMany({
+      where: {
+        emailThreadId: {
+          not: null,
+        },
+      },
+      select: {
+        id: true,
+        emailThreadId: true,
+        lastEmailAt: true,
+        address: true,
+      },
+    });
+
+    let updatedCount = 0;
+
+    for (const apartment of apartments) {
+      if (!apartment.emailThreadId) continue;
+
+      try {
+        // Fetch the full thread from Gmail
+        const thread = await getGmailThread(session.user.id, apartment.emailThreadId);
+
+        if (!thread) {
+          console.log(`Thread ${apartment.emailThreadId} not found for apartment ${apartment.id}`);
+          continue;
+        }
+
+        // Check if there are new messages since lastEmailAt
+        const lastEmailDate = apartment.lastEmailAt || new Date(0);
+        const hasNewMessages = thread.lastMessageDate > lastEmailDate;
+
+        if (!hasNewMessages) {
+          console.log(`No new messages for apartment ${apartment.address}`);
+          continue;
+        }
+
+        console.log(`Found new messages for apartment ${apartment.address}`);
+
+        // Get the combined body of all messages
+        const combinedBody = getCombinedThreadBody(thread);
+
+        // Generate updated summary using Haiku (cheap model)
+        const newSummary = await generateEmailThreadSummary(combinedBody, thread.subject);
+
+        // Extract action items from the newest messages
+        const newMessages = thread.messages.filter(msg => msg.date > lastEmailDate);
+        const newMessagesBodies = newMessages.map(msg =>
+          `From: ${msg.from}\nDate: ${msg.date.toISOString()}\n\n${msg.body}`
+        ).join("\n\n---\n\n");
+
+        const extraction = await extractActionItemsFromEmail(newMessagesBodies, thread.subject);
+
+        // Update the apartment
+        await prisma.apartment.update({
+          where: { id: apartment.id },
+          data: {
+            descriptionSummary: newSummary,
+            lastEmailAt: thread.lastMessageDate,
+          },
+        });
+
+        // Create new action items
+        for (const actionItem of extraction.actionItems) {
+          await prisma.actionItem.create({
+            data: {
+              apartmentId: apartment.id,
+              type: actionItem.type,
+              description: actionItem.description,
+              dueDate: actionItem.dueDate ? new Date(actionItem.dueDate) : null,
+              link: actionItem.link,
+            },
+          });
+        }
+
+        // Create new timeline events
+        for (const timelineEvent of extraction.timelineEvents) {
+          await prisma.timeline.create({
+            data: {
+              apartmentId: apartment.id,
+              event: timelineEvent.event,
+              description: timelineEvent.description,
+              occurredAt: timelineEvent.occurredAt ? new Date(timelineEvent.occurredAt) : new Date(),
+            },
+          });
+        }
+
+        // Create new documents if mentioned
+        for (const doc of extraction.documents) {
+          // Check if document already exists
+          const existing = await prisma.document.findFirst({
+            where: {
+              apartmentId: apartment.id,
+              name: {
+                equals: doc.name,
+                mode: "insensitive",
+              },
+            },
+          });
+
+          if (!existing) {
+            await prisma.document.create({
+              data: {
+                apartmentId: apartment.id,
+                name: doc.name,
+                required: doc.required,
+              },
+            });
+          }
+        }
+
+        updatedCount++;
+      } catch (error) {
+        console.error(`Error updating thread for apartment ${apartment.id}:`, error);
+        // Continue with other apartments even if one fails
+      }
+    }
+
+    return updatedCount;
+  } catch (error) {
+    console.error("Error detecting email thread updates:", error);
+    throw new Error(
+      `Failed to detect thread updates: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
+  }
 }

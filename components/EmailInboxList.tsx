@@ -51,9 +51,13 @@ export function EmailInboxList({ emails: initialEmails }: EmailInboxListProps) {
 
     setCreatingId(emailId);
     try {
+      // Find the email to get body and subject
+      const email = emails.find((e) => e.id === emailId);
       const apartmentId = await createApartmentFromParsedData(
         parsedData,
-        emailId
+        emailId,
+        email?.body,
+        email?.subject
       );
       router.push(`/apartments/${apartmentId}`);
     } catch (error) {

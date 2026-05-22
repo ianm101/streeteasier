@@ -12,6 +12,7 @@ export async function getApartments() {
 
   const apartments = await prisma.apartment.findMany({
     include: {
+      // @ts-ignore - Prisma types not updated on Vercel build
       addedBy: {
         select: {
           id: true,
@@ -50,6 +51,26 @@ export async function getApartments() {
           createdAt: "desc",
         },
       },
+      actionItems: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+      timeline: {
+        orderBy: {
+          occurredAt: "desc",
+        },
+      },
+      documents: {
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+      fileAttachments: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
     },
     orderBy: {
       createdAt: "desc",
@@ -68,6 +89,7 @@ export async function getApartmentById(id: string) {
   const apartment = await prisma.apartment.findUnique({
     where: { id },
     include: {
+      // @ts-ignore - Prisma types not updated on Vercel build
       addedBy: {
         select: {
           id: true,
@@ -108,6 +130,26 @@ export async function getApartmentById(id: string) {
             },
           },
         },
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+      actionItems: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+      timeline: {
+        orderBy: {
+          occurredAt: "desc",
+        },
+      },
+      documents: {
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+      fileAttachments: {
         orderBy: {
           createdAt: "desc",
         },
@@ -165,6 +207,9 @@ interface CreateApartmentInput {
   pointPersonId?: string;
   amenities?: string[];
   notes?: string;
+  descriptionSummary?: string;
+  emailThreadId?: string;
+  lastEmailAt?: Date;
 }
 
 export async function createApartment(input: CreateApartmentInput) {
@@ -213,6 +258,9 @@ export async function createApartment(input: CreateApartmentInput) {
       brokerEmail: input.brokerEmail || null,
       brokerPhone: input.brokerPhone || null,
       notes: input.notes || null,
+      descriptionSummary: input.descriptionSummary || null,
+      emailThreadId: input.emailThreadId || null,
+      lastEmailAt: input.lastEmailAt || null,
       addedById: session.user.id,
       pointPersonId: input.pointPersonId || null,
       amenities: input.amenities

@@ -84,12 +84,13 @@ export function ApartmentGrid({ apartments, currentUserId }: ApartmentGridProps)
   });
 
   return (
-    <div className="space-y-6">
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4 items-center">
-        <div className="w-full sm:w-48">
+    <div className="space-y-8">
+      {/* Swiss Grid Filters */}
+      <div className="flex flex-wrap gap-6 items-center border-b border-gray-300 pb-6">
+        <div className="w-full sm:w-56">
+          <label className="text-xs font-bold uppercase tracking-wider mb-2 block">Status</label>
           <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value || "all")}>
-            <SelectTrigger className="bg-white">
+            <SelectTrigger className="bg-white border-2 border-black h-12 text-sm font-medium">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
@@ -103,9 +104,10 @@ export function ApartmentGrid({ apartments, currentUserId }: ApartmentGridProps)
           </Select>
         </div>
 
-        <div className="w-full sm:w-48">
+        <div className="w-full sm:w-56">
+          <label className="text-xs font-bold uppercase tracking-wider mb-2 block">Sort</label>
           <Select value={sortBy} onValueChange={(value) => setSortBy(value || "date")}>
-            <SelectTrigger className="bg-white">
+            <SelectTrigger className="bg-white border-2 border-black h-12 text-sm font-medium">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
@@ -118,19 +120,19 @@ export function ApartmentGrid({ apartments, currentUserId }: ApartmentGridProps)
           </Select>
         </div>
 
-        <div className="ml-auto text-sm text-zinc-600">
-          Showing <span className="font-semibold text-zinc-900">{sortedApartments.length}</span> {sortedApartments.length === 1 ? "apartment" : "apartments"}
+        <div className="ml-auto text-xs font-bold uppercase tracking-wider">
+          {sortedApartments.length} Results
         </div>
       </div>
 
       {/* Grid */}
       {sortedApartments.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-zinc-500 text-lg">No apartments found</p>
-          <p className="text-zinc-400 text-sm mt-2">Try adjusting your filters or add a new apartment</p>
+        <div className="text-center py-24 border-2 border-black">
+          <p className="text-xl font-bold uppercase">No Apartments Found</p>
+          <p className="text-sm uppercase tracking-wide mt-2 text-gray-600">Adjust Filters or Add New</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-black">
           {sortedApartments.map((apartment) => (
             <ApartmentCard
               key={apartment.id}

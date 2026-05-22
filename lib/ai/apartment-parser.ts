@@ -23,6 +23,30 @@ export interface ParsedApartment {
   extractedText: string;
 }
 
+export interface ActionItemExtraction {
+  type: string; // "application_pending", "schedule_tour", "submit_documents", "sign_lease", "follow_up"
+  description: string;
+  dueDate: string | null; // ISO date string
+  link: string | null;
+}
+
+export interface TimelineEventExtraction {
+  event: string; // "inquiry_sent", "tour_scheduled", "tour_completed", "application_submitted", "application_approved", "lease_signed"
+  description: string;
+  occurredAt: string | null; // ISO date string
+}
+
+export interface DocumentExtraction {
+  name: string;
+  required: boolean;
+}
+
+export interface EmailActionItemsExtraction {
+  actionItems: ActionItemExtraction[];
+  timelineEvents: TimelineEventExtraction[];
+  documents: DocumentExtraction[];
+}
+
 export async function parseApartmentFromEmail(
   emailBody: string,
   subject: string,
@@ -133,4 +157,133 @@ export async function parseStreetEasyUrl(url: string): Promise<ParsedApartment> 
     confidence: "low",
     extractedText: `StreetEasy listing: ${url}. Details need to be extracted manually or via web scraping.`,
   };
+}
+
+/**
+ * Generate a concise summary of an email thread using Claude Haiku (cheap model)
+ * This is used to populate the descriptionSummary field on apartment cards
+ */
+export async function generateEmailThreadSummary(
+  emailBody: string,
+  subject: string
+): Promise<string> {
+  const prompt = `You are summarizing an email thread about an NYC apartment listing. Create a concise 2-3 sentence summary that captures the most important information for someone deciding whether to pursue this apartment.
+
+Email Subject: ${subject}
+
+Email Body:
+${emailBody}
+
+Focus on:
+- Current status of the apartment/application process
+- Key features or selling points mentioned
+- Any important deadlines or next steps
+- Notable concerns or issues
+
+Keep it under 100 words. Be direct and informative. Return ONLY the summary text, no other formatting.`;
+
+  try {
+    const message = await anthropic.messages.create({
+      model: "claude-haiku-4",  // Using cheaper Haiku model instead of Sonnet
+      max_tokens: 300,
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+
+    const responseText =
+      message.content[0].type === "text" ? message.content[0].text : "";
+
+    return responseText.trim();
+  } catch (error) {
+    console.error("Error generating summary with AI:", error);
+    // Return a fallback summary from the subject line
+    return `Email thread: ${subject}`;
+  }
+}
+
+export async function extractActionItemsFromEmail(
+  emailBody: string,
+  subject: string
+): Promise<EmailActionItemsExtraction> {
+  const prompt = `You are an expert at extracting action items, timeline events, and document requirements from apartment hunting emails.
+
+Analyze this email thread about an NYC apartment and extract:
+
+Email Subject: ${subject}
+
+Email Body:
+${emailBody}
+
+Please extract and return ONLY a JSON object with the following structure:
+
+{
+  "actionItems": [
+    {
+      "type": "application_pending" | "schedule_tour" | "submit_documents" | "sign_lease" | "follow_up",
+      "description": "Brief description of what needs to be done",
+      "dueDate": "ISO date string if mentioned, or null",
+      "link": "URL if there's an application link, document link, or scheduling link"
+    }
+  ],
+  "timelineEvents": [
+    {
+      "event": "inquiry_sent" | "tour_scheduled" | "tour_completed" | "application_submitted" | "application_approved" | "lease_signed",
+      "description": "What happened",
+      "occurredAt": "ISO date string when it happened, or null for current time"
+    }
+  ],
+  "documents": [
+    {
+      "name": "Document name (e.g., 'Photo ID', 'Pay Stubs', 'Bank Statements')",
+      "required": true | false
+    }
+  ]
+}
+
+Guidelines:
+- For actionItems, identify what the person needs to DO next (fill out application, schedule tour, submit docs, etc.)
+- For timelineEvents, identify what has ALREADY HAPPENED (tour completed, application submitted, etc.)
+- Look for phrases like "I have filled out", "I completed", "we scheduled" to identify completed events
+- For documents, extract any list of required documents mentioned
+- Extract application links like realogy.weimark.com or other application portals
+- If someone says they "can't upload documents" or similar, create an action item to follow up
+- Use ISO 8601 format for dates (YYYY-MM-DDTHH:mm:ss.sssZ)
+
+Return ONLY the JSON object, no other text.`;
+
+  try {
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 3000,
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+
+    const responseText =
+      message.content[0].type === "text" ? message.content[0].text : "";
+
+    // Extract JSON from response
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("Could not extract JSON from AI response");
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    return parsed as EmailActionItemsExtraction;
+  } catch (error) {
+    console.error("Error extracting action items with AI:", error);
+    return {
+      actionItems: [],
+      timelineEvents: [],
+      documents: [],
+    };
+  }
 }

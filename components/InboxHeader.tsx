@@ -46,38 +46,33 @@ export function InboxHeader({ emailCount, highRelevanceCount }: InboxHeaderProps
   }, [autoRefresh, router]);
 
   return (
-    <div className="mb-8">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-br from-blue-500 to-purple-500 p-3 rounded-xl shadow-lg">
-            <Mail className="h-7 w-7 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-zinc-900 to-zinc-600 bg-clip-text text-transparent">
-              Email Inbox
-            </h1>
-            <p className="text-sm text-zinc-500 mt-1">
-              {highRelevanceCount > 0 && (
-                <span className="font-semibold text-blue-600">{highRelevanceCount} likely apartments</span>
-              )}
-              {highRelevanceCount > 0 && emailCount > highRelevanceCount && <span> • </span>}
-              {emailCount} total {emailCount === 1 ? "email" : "emails"}
-            </p>
-          </div>
+    <div className="border-b-2 border-black pb-8 mb-12">
+      <div className="flex justify-between items-start mb-6">
+        <div>
+          <h1 className="text-6xl font-bold uppercase tracking-tight mb-2">
+            Inbox
+          </h1>
+          <p className="text-base uppercase tracking-wide text-gray-600">
+            {highRelevanceCount > 0 && (
+              <span className="font-bold text-black">{highRelevanceCount} Likely Apartments</span>
+            )}
+            {highRelevanceCount > 0 && emailCount > highRelevanceCount && <span> / </span>}
+            {emailCount} Total Messages
+          </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 bg-zinc-50 rounded-lg px-3 py-2 border border-zinc-200">
-            <Settings className="h-4 w-4 text-zinc-500" />
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-gray-100 border-2 border-black px-4 py-2">
+            <Settings className="h-4 w-4" />
             <Select value={autoRefresh} onValueChange={(value) => setAutoRefresh(value || "off")}>
-              <SelectTrigger className="border-none bg-transparent w-32 h-auto p-0">
+              <SelectTrigger className="border-none bg-transparent w-32 h-auto p-0 font-medium text-sm">
                 <SelectValue placeholder="Auto-refresh" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="off">No auto-refresh</SelectItem>
-                <SelectItem value="1min">Every 1 min</SelectItem>
-                <SelectItem value="5min">Every 5 min</SelectItem>
-                <SelectItem value="15min">Every 15 min</SelectItem>
+                <SelectItem value="off">No Auto-Refresh</SelectItem>
+                <SelectItem value="1min">Every 1 Min</SelectItem>
+                <SelectItem value="5min">Every 5 Min</SelectItem>
+                <SelectItem value="15min">Every 15 Min</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -85,27 +80,26 @@ export function InboxHeader({ emailCount, highRelevanceCount }: InboxHeaderProps
           <Button
             onClick={handleRefresh}
             disabled={refreshing}
-            size="sm"
-            className="gap-2"
+            className="bg-black text-white hover:bg-gray-900 px-6 py-6 font-bold uppercase text-sm tracking-wide"
           >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            {refreshing ? "Refreshing..." : "Refresh"}
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Refreshing" : "Refresh"}
           </Button>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-sm text-zinc-500">
-        <span>Gmail emails about apartments • AI-powered extraction</span>
+      <div className="flex items-center gap-4 text-xs font-medium uppercase tracking-wide text-gray-600">
+        <span>Gmail • AI Extraction</span>
         {autoRefresh !== "off" && (
           <>
             <span>•</span>
-            <span className="text-blue-600">
-              Auto-refresh: {autoRefresh === "1min" ? "1 min" : autoRefresh === "5min" ? "5 min" : "15 min"}
+            <span className="text-black">
+              Auto: {autoRefresh === "1min" ? "1 Min" : autoRefresh === "5min" ? "5 Min" : "15 Min"}
             </span>
           </>
         )}
         <span>•</span>
-        <span>Last updated: {lastRefresh.toLocaleTimeString()}</span>
+        <span>Updated: {lastRefresh.toLocaleTimeString()}</span>
       </div>
     </div>
   );

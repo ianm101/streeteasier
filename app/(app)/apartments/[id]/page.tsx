@@ -6,6 +6,8 @@ import { getApartmentById } from "@/lib/actions/apartments";
 import { getUserRanking } from "@/lib/actions/rankings";
 import { RankingWidget } from "@/components/RankingWidget";
 import { NotesSection } from "@/components/NotesSection";
+import { ApartmentTimeline } from "@/components/ApartmentTimeline";
+import { DocumentChecklist } from "@/components/DocumentChecklist";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { APARTMENT_STATUS_LABELS } from "@/lib/constants/statuses";
@@ -26,11 +28,14 @@ export default async function ApartmentDetailPage({
     redirect("/");
   }
 
-  const apartment = await getApartmentById(id);
+  const apartmentData = await getApartmentById(id);
 
-  if (!apartment) {
+  if (!apartmentData) {
     notFound();
   }
+
+  // Type assertion for Prisma includes - Vercel has issues with complex Prisma types
+  const apartment = apartmentData as any;
 
   const userRanking = await getUserRanking(id);
 
@@ -67,8 +72,8 @@ export default async function ApartmentDetailPage({
   };
 
   const getAverageRank = () => {
-    if (apartment.rankings.length === 0) return null;
-    const sum = apartment.rankings.reduce((acc, r) => acc + r.rank, 0);
+    if (!apartment.rankings || apartment.rankings.length === 0) return null;
+    const sum = apartment.rankings.reduce((acc: number, r: any) => acc + r.rank, 0);
     return (sum / apartment.rankings.length).toFixed(1);
   };
 
@@ -169,7 +174,7 @@ export default async function ApartmentDetailPage({
             <div className="bg-white rounded-lg border p-6">
               <h2 className="text-xl font-semibold mb-4">Amenities</h2>
               <div className="grid grid-cols-2 gap-2">
-                {apartment.amenities.map((amenity) => (
+                {apartment.amenities.map((amenity: any) => (
                   <div
                     key={amenity.id}
                     className="flex items-center gap-2 text-sm"
@@ -232,6 +237,20 @@ export default async function ApartmentDetailPage({
             </div>
           )}
 
+          {/* Timeline */}
+          {apartment.timeline && apartment.timeline.length > 0 && (
+            <div className="bg-white rounded-lg border p-6">
+              <ApartmentTimeline timeline={apartment.timeline} />
+            </div>
+          )}
+
+          {/* Documents */}
+          {apartment.documents && apartment.documents.length > 0 && (
+            <div className="bg-white rounded-lg border p-6">
+              <DocumentChecklist documents={apartment.documents} />
+            </div>
+          )}
+
           {/* Notes Section */}
           <div className="bg-white rounded-lg border p-6">
             <NotesSection
@@ -251,7 +270,7 @@ export default async function ApartmentDetailPage({
             <div className="space-y-4">
               <RankingWidget apartmentId={apartment.id} currentRank={userRanking} />
 
-              {apartment.rankings.length > 0 && (
+              {apartment.rankings && apartment.rankings.length > 0 && (
                 <div className="pt-4 border-t space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Average:</span>
@@ -261,7 +280,7 @@ export default async function ApartmentDetailPage({
                   </div>
 
                   <div className="space-y-2">
-                    {apartment.rankings.map((ranking) => (
+                    {apartment.rankings.map((ranking: any) => (
                       <div
                         key={ranking.user.id}
                         className="flex items-center justify-between text-sm"
