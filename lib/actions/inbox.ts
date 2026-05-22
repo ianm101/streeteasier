@@ -4,6 +4,8 @@ import { auth } from "@/auth";
 import { searchApartmentEmails, getGmailThread, getCombinedThreadBody, type GmailMessage } from "@/lib/gmail/client";
 import { parseApartmentFromEmail, extractActionItemsFromEmail, generateEmailThreadSummary } from "@/lib/ai/apartment-parser";
 import { createApartment } from "./apartments";
+import { createOrUpdateBrokerThread } from "./broker-threads";
+import { isBrokerThread } from "@/lib/utils/broker-utils";
 
 export interface ParsedEmail extends GmailMessage {
   relevanceScore?: number; // 0-100, higher = more likely to be apartment listing
@@ -405,6 +407,56 @@ export async function detectAndUpdateEmailThreads(): Promise<number> {
     console.error("Error detecting email thread updates:", error);
     throw new Error(
       `Failed to detect thread updates: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
+  }
+}
+
+/**
+ * Scan emails for broker threads and create/update them
+ * Returns the number of broker threads found
+ */
+export async function detectBrokerThreads(): Promise<number> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+
+  try {
+    const emails = await searchApartmentEmails(session.user.id, {
+      maxResults: 50,
+    });
+
+    let brokerThreadCount = 0;
+
+    // Group emails by thread ID
+    const threadMap = new Map<string, GmailMessage[]>();
+    for (const email of emails) {
+      const existing = threadMap.get(email.threadId) || [];
+      existing.push(email);
+      threadMap.set(email.threadId, existing);
+    }
+
+    // Check each unique thread
+    for (const [threadId, threadEmails] of threadMap.entries()) {
+      const firstEmail = threadEmails[0];
+
+      // Check if this looks like a broker thread
+      if (isBrokerThread(firstEmail.from, firstEmail.subject, threadEmails.length)) {
+        try {
+          await createOrUpdateBrokerThread(threadId);
+          brokerThreadCount++;
+        } catch (error) {
+          console.error(`Error processing broker thread ${threadId}:`, error);
+          // Continue with other threads
+        }
+      }
+    }
+
+    return brokerThreadCount;
+  } catch (error) {
+    console.error("Error detecting broker threads:", error);
+    throw new Error(
+      `Failed to detect broker threads: ${error instanceof Error ? error.message : "Unknown error"}`
     );
   }
 }

@@ -67,6 +67,7 @@ model User {
   pointForApartments Apartment[] @relation("PointPerson")
   rankings           Ranking[]
   notes              Note[]
+  brokerThreads      BrokerThread[]
 }
 
 model Apartment {
@@ -108,16 +109,19 @@ model Apartment {
   pointPersonId String?
   pointPerson   User?    @relation("PointPerson", fields: [pointPersonId], references: [id])
 
-  amenities     ApartmentAmenity[]
-  rankings      Ranking[]
-  apartmentNotes Note[]
-  actionItems   ActionItem[]
-  timeline      Timeline[]
-  documents     Document[]
+  amenities       ApartmentAmenity[]
+  rankings        Ranking[]
+  apartmentNotes  Note[]
+  actionItems     ActionItem[]
+  timeline        Timeline[]
+  documents       Document[]
   fileAttachments FileAttachment[]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  brokerThreadId  String?
+  brokerThread    BrokerThread? @relation(fields: [brokerThreadId], references: [id])
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model ApartmentAmenity {
@@ -212,4 +216,40 @@ model FileAttachment {
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+model BrokerThread {
+  id                 String   @id @default(cuid())
+
+  // Broker information
+  brokerName         String
+  brokerEmail        String
+  brokerPhone        String?
+  brokerCompany      String?  // "Corcoran", "Compass", etc.
+
+  // Email thread tracking
+  emailThreadId      String   @unique  // Gmail thread ID
+  subject            String
+  lastEmailAt        DateTime
+  messageCount       Int      @default(1)
+
+  // AI-extracted information
+  summary            String?   // Claude Haiku summary of conversation
+  status             String    @default("active")  // "active", "cold", "completed"
+
+  // Mentioned apartments (may not be full listings yet)
+  mentionedAddresses String[] // ["225 Eighth Ave #2D", "225 Eighth Ave #4D"]
+  mentionedPrices    Int[]    // [null, 8200]
+
+  // User asks/requests extracted by AI
+  userAsks           String[] // ["Schedule showing", "Submit documents"]
+  brokerAsks         String[] // ["Fill out application", "Send paystubs"]
+
+  // Relations
+  apartments         Apartment[] // Apartments created from this thread
+  addedById          String
+  addedBy            User      @relation(fields: [addedById], references: [id])
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }

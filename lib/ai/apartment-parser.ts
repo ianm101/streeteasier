@@ -47,6 +47,19 @@ export interface EmailActionItemsExtraction {
   documents: DocumentExtraction[];
 }
 
+export interface BrokerThreadInfo {
+  brokerName: string;
+  brokerEmail: string;
+  brokerPhone: string | null;
+  brokerCompany: string | null;
+  summary: string;
+  status: "active" | "cold" | "completed";
+  mentionedAddresses: string[];
+  mentionedPrices: (number | null)[];
+  userAsks: string[];
+  brokerAsks: string[];
+}
+
 export async function parseApartmentFromEmail(
   emailBody: string,
   subject: string,
@@ -284,6 +297,89 @@ Return ONLY the JSON object, no other text.`;
       actionItems: [],
       timelineEvents: [],
       documents: [],
+    };
+  }
+}
+
+/**
+ * Extract broker thread information from an email thread using Claude Haiku
+ * This identifies broker conversations that may mention multiple properties
+ */
+export async function extractBrokerThreadInfo(
+  emailBody: string,
+  subject: string,
+  fromEmail: string
+): Promise<BrokerThreadInfo> {
+  const prompt = `You are analyzing an email thread about NYC apartment hunting with a real estate broker.
+
+Email Subject: ${subject}
+From: ${fromEmail}
+
+Email Body/Thread:
+${emailBody}
+
+Extract the following information and return ONLY a JSON object:
+
+{
+  "brokerName": "Full name of the broker (e.g., 'Jermaine Johns')",
+  "brokerEmail": "Broker's email address",
+  "brokerPhone": "Broker's phone number if mentioned, otherwise null",
+  "brokerCompany": "Brokerage company (e.g., 'Corcoran', 'Compass', 'CitiHabitats') or null",
+  "summary": "2-3 sentence summary of the conversation and current status",
+  "status": "active" | "cold" | "completed",
+  "mentionedAddresses": ["Array of all apartment addresses mentioned in any message"],
+  "mentionedPrices": [Array of prices corresponding to addresses, use null if price not mentioned for that address],
+  "userAsks": ["Array of things the user/tenant is asking for or needs to do (e.g., 'Schedule showing', 'Submit application')"],
+  "brokerAsks": ["Array of things the broker is asking the user to do (e.g., 'Fill out application', 'Send paystubs')"]
+}
+
+Guidelines:
+- Extract broker info from email signature, headers, or message content
+- Status: "active" if recent conversation, "cold" if > 1 week old, "completed" if lease signed or deal fell through
+- Mentioned addresses: extract ALL properties discussed (e.g., "225 Eighth Avenue #2D", "225 Eighth Avenue #4D")
+- Prices: match to addresses in same order, use null if not mentioned
+- User asks: what the tenant/user needs/wants (showing requests, questions, document submission needs)
+- Broker asks: what the broker is requesting from the user (fill forms, provide documents, schedule tour)
+
+Return ONLY the JSON object, no other text.`;
+
+  try {
+    const message = await anthropic.messages.create({
+      model: "claude-haiku-4",  // Cheap model for broker thread analysis
+      max_tokens: 1500,
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+
+    const responseText =
+      message.content[0].type === "text" ? message.content[0].text : "";
+
+    // Extract JSON from response
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("Could not extract JSON from AI response");
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    return parsed as BrokerThreadInfo;
+  } catch (error) {
+    console.error("Error extracting broker thread info with AI:", error);
+    // Return a fallback with minimal info
+    return {
+      brokerName: "Unknown Broker",
+      brokerEmail: fromEmail,
+      brokerPhone: null,
+      brokerCompany: null,
+      summary: `Email thread: ${subject}`,
+      status: "active",
+      mentionedAddresses: [],
+      mentionedPrices: [],
+      userAsks: [],
+      brokerAsks: [],
     };
   }
 }
