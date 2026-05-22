@@ -2,11 +2,13 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getApartments } from "@/lib/actions/apartments";
+import { getBrokerThreads } from "@/lib/actions/broker-threads";
 import { fetchApartmentEmails } from "@/lib/actions/inbox";
 import { ApartmentGrid } from "@/components/ApartmentGrid";
+import { BrokerThreadCard } from "@/components/BrokerThreadCard";
 import { LikelyApartmentsSection } from "@/components/LikelyApartmentsSection";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, MessageSquare } from "lucide-react";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -16,6 +18,14 @@ export default async function DashboardPage() {
   }
 
   const apartments = await getApartments();
+
+  // Fetch broker threads
+  let brokerThreads: Awaited<ReturnType<typeof getBrokerThreads>> = [];
+  try {
+    brokerThreads = await getBrokerThreads();
+  } catch (error) {
+    console.error("Error fetching broker threads:", error);
+  }
 
   // Fetch high-relevance emails that haven't been converted to apartments yet
   let likelyEmails: Awaited<ReturnType<typeof fetchApartmentEmails>> = [];
@@ -61,6 +71,26 @@ export default async function DashboardPage() {
         </div>
 
         <ApartmentGrid apartments={apartments as any} currentUserId={session.user.id} />
+
+        {/* Broker Threads Section */}
+        {brokerThreads.length > 0 && (
+          <div className="mt-16 pt-16 border-t-2 border-black">
+            <div className="mb-8">
+              <h2 className="text-4xl font-bold uppercase tracking-tight mb-2">Broker Conversations</h2>
+              <p className="text-sm uppercase tracking-wide text-gray-600">
+                {brokerThreads.length} Active {brokerThreads.length === 1 ? "Thread" : "Threads"}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-black">
+              {brokerThreads.map((thread) => (
+                <Link key={thread.id} href={`/broker-threads/${thread.id}`}>
+                  <BrokerThreadCard thread={thread as any} />
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Likely Apartments from Inbox */}
         {likelyEmails.length > 0 && (
