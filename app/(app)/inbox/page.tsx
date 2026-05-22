@@ -21,9 +21,11 @@ export default async function InboxPage() {
     emails = [];
   }
 
+  const highRelevanceCount = emails.filter((email) => (email.relevanceScore || 0) >= 40).length;
+
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <InboxHeader emailCount={emails.length} />
+      <InboxHeader emailCount={emails.length} highRelevanceCount={highRelevanceCount} />
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
