@@ -173,6 +173,27 @@ export async function createApartment(input: CreateApartmentInput) {
     throw new Error("Unauthorized");
   }
 
+  // If there's a StreetEasy URL, scrape photos
+  let photoUrls: string[] = [];
+  let scrapedData: any = null;
+
+  if (input.listingUrl && input.listingUrl.includes("streeteasy.com")) {
+    try {
+      const { scrapeStreetEasyListing } = await import("@/lib/scrapers/streeteasy");
+      scrapedData = await scrapeStreetEasyListing(input.listingUrl);
+      photoUrls = scrapedData.photoUrls || [];
+
+      // Use scraped data to fill in missing fields
+      if (!input.price && scrapedData.price) input.price = scrapedData.price;
+      if (!input.beds && scrapedData.beds) input.beds = scrapedData.beds;
+      if (!input.baths && scrapedData.baths) input.baths = scrapedData.baths;
+      if (!input.sqft && scrapedData.sqft) input.sqft = scrapedData.sqft;
+    } catch (error) {
+      console.error("Error scraping StreetEasy:", error);
+      // Continue with apartment creation even if scraping fails
+    }
+  }
+
   const apartment = await prisma.apartment.create({
     data: {
       address: input.address,
@@ -185,6 +206,7 @@ export async function createApartment(input: CreateApartmentInput) {
       sqft: input.sqft || null,
       floor: input.floor || null,
       listingUrl: input.listingUrl || null,
+      photoUrls: photoUrls,
       source: input.source,
       status: input.status || "interested",
       brokerName: input.brokerName || null,
