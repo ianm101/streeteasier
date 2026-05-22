@@ -1,0 +1,20 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="600" fill="#f4f4f5"/>
+  <g transform="translate(400, 300)">
+    <!-- Building icon -->
+    <rect x="-80" y="-100" width="160" height="180" fill="#d4d4d8" stroke="#a1a1aa" stroke-width="2"/>
+    <rect x="-60" y="-80" width="30" height="30" fill="#fafafa"/>
+    <rect x="-15" y="-80" width="30" height="30" fill="#fafafa"/>
+    <rect x="30" y="-80" width="30" height="30" fill="#fafafa"/>
+    <rect x="-60" y="-35" width="30" height="30" fill="#fafafa"/>
+    <rect x="-15" y="-35" width="30" height="30" fill="#fafafa"/>
+    <rect x="30" y="-35" width="30" height="30" fill="#fafafa"/>
+    <rect x="-60" y="10" width="30" height="30" fill="#fafafa"/>
+    <rect x="-15" y="10" width="30" height="30" fill="#fafafa"/>
+    <rect x="30" y="10" width="30" height="30" fill="#fafafa"/>
+    <rect x="-30" y="50" width="60" height="30" fill="#71717a"/>
+  </g>
+  <text x="400" y="420" font-family="system-ui, -apple-system, sans-serif" font-size="18" fill="#71717a" text-anchor="middle" font-weight="500">
+    No Image Available
+  </text>
+</svg>
