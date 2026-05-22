@@ -15,7 +15,7 @@ declare module "@auth/core/types" {
 // @ts-ignore - NextAuth v5 beta has callable type inference issues in production builds
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true, // Required for Vercel deployment
-  secret: process.env.AUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET,
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
