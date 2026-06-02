@@ -124,21 +124,47 @@ export function InboxEmailCard({
         {/* Email Snippet */}
         <p className="text-sm text-zinc-700 line-clamp-2">{email.snippet}</p>
 
-        {/* StreetEasy URLs */}
+        {/* StreetEasy URLs - Extract readable address */}
         {email.streetEasyUrls.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {email.streetEasyUrls.map((url, idx) => (
-              <a
-                key={idx}
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline bg-blue-50 px-2 py-1 rounded"
-              >
-                <ExternalLink className="h-3 w-3" />
-                {new URL(url).pathname.split('/').pop()}
-              </a>
-            ))}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-zinc-600 uppercase tracking-wide">
+              Listings in Email:
+            </p>
+            <div className="space-y-1">
+              {email.streetEasyUrls.map((url, idx) => {
+                // Extract readable address from URL
+                // e.g., /building/225-eighth-avenue-chelsea/2d -> 225 Eighth Avenue #2D
+                const pathParts = new URL(url).pathname.split('/').filter(Boolean);
+                let displayText = "View Listing";
+
+                if (pathParts[0] === 'building' && pathParts[1]) {
+                  const buildingSlug = pathParts[1];
+                  const unit = pathParts[2] ? `#${pathParts[2].toUpperCase()}` : '';
+                  // Convert slug: 225-eighth-avenue-chelsea -> 225 Eighth Avenue
+                  const addressParts = buildingSlug.split('-');
+                  const streetNumber = addressParts[0];
+                  const streetName = addressParts.slice(1)
+                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(' ');
+                  displayText = `${streetNumber} ${streetName} ${unit}`.trim();
+                } else if (pathParts[0] === 'rental') {
+                  displayText = `Rental ID: ${pathParts[1]}`;
+                }
+
+                return (
+                  <a
+                    key={idx}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-blue-700 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg border border-blue-200 bg-white transition-colors group"
+                  >
+                    <ExternalLink className="h-4 w-4 flex-shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    <span className="font-medium">{displayText}</span>
+                  </a>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
