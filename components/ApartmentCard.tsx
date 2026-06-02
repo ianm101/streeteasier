@@ -305,16 +305,17 @@ export function ApartmentCard({ apartment, currentUserId }: ApartmentCardProps) 
                 )}
               </div>
               {apartment.listingUrl && (
-                <a
-                  href={apartment.listingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open(apartment.listingUrl!, "_blank", "noopener,noreferrer");
+                  }}
                   className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
                   <ExternalLink className="h-4 w-4" />
                   View Listing
-                </a>
+                </button>
               )}
             </div>
           </div>
