@@ -1,6 +1,12 @@
 /**
- * Parse StreetEasy HTML emails to extract listing details
+ * Parse StreetEasy HTML emails to extract listing details using Claude Haiku
  */
+
+import Anthropic from "@anthropic-ai/sdk";
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
 
 export interface StreetEasyListing {
   address: string;
@@ -14,102 +20,89 @@ export interface StreetEasyListing {
 }
 
 /**
- * Extract listing details from StreetEasy HTML email content
+ * Extract listing details from StreetEasy HTML email content using Claude Haiku
  */
-export function parseStreetEasyListings(htmlContent: string): StreetEasyListing[] {
-  const listings: StreetEasyListing[] = [];
+export async function parseStreetEasyListings(htmlContent: string): Promise<StreetEasyListing[]> {
+  // First, extract all StreetEasy URLs from the HTML
+  const streetEasyRegex = /https?:\/\/(www\.)?streeteasy\.com\/[^\s<>"]+/gi;
+  const streetEasyUrls = [...new Set(htmlContent.match(streetEasyRegex) || [])].map(url =>
+    url.replace(/&amp;/g, '&')
+  );
 
-  // StreetEasy sends listings in structured divs with specific patterns
-  // Extract rental unit information
-  const rentalUnitPattern = /RENTAL UNIT IN ([A-Z\s]+)\s*<\/[^>]+>\s*<[^>]+>([^<]+)<\/[^>]+>\s*<[^>]+>\$([0-9,]+)/gi;
-  let match;
-
-  while ((match = rentalUnitPattern.exec(htmlContent)) !== null) {
-    const neighborhood = match[1].trim();
-    const address = match[2].trim();
-    const priceStr = match[3].replace(/,/g, '');
-    const price = parseInt(priceStr, 10);
-
-    // Extract listing URL - look for streeteasy.com link near this listing
-    const contextStart = Math.max(0, match.index - 500);
-    const contextEnd = Math.min(htmlContent.length, match.index + 1000);
-    const context = htmlContent.substring(contextStart, contextEnd);
-
-    const urlMatch = context.match(/https?:\/\/(?:www\.)?streeteasy\.com\/[^"\s<>]+/);
-    const listingUrl = urlMatch ? urlMatch[0].replace(/&amp;/g, '&') : '';
-
-    // Extract beds/baths info
-    const bedsMatch = context.match(/(\d+)\s*Beds?/i);
-    const bathsMatch = context.match(/(\d+)\s*Baths?/i);
-    const beds = bedsMatch ? parseInt(bedsMatch[1], 10) : null;
-    const baths = bathsMatch ? parseInt(bathsMatch[1], 10) : null;
-
-    // Extract image URL
-    const imgMatch = context.match(/<img[^>]+src="([^"]+)"/);
-    const imageUrl = imgMatch ? imgMatch[1] : null;
-
-    // Parse address to separate unit number
-    let unit: string | undefined;
-    const unitMatch = address.match(/(.+?)\s+#?([A-Z0-9]+)$/);
-    const cleanAddress = unitMatch ? unitMatch[1] : address;
-    unit = unitMatch ? unitMatch[2] : undefined;
-
-    if (listingUrl) {
-      listings.push({
-        address: cleanAddress,
-        unit,
-        price,
-        beds,
-        baths,
-        imageUrl,
-        listingUrl,
-        neighborhood,
-      });
-    }
+  if (streetEasyUrls.length === 0) {
+    return [];
   }
 
-  // Alternative pattern for listings without "RENTAL UNIT IN" header
-  // Look for price patterns followed by bed/bath info
-  const altPattern = /\$([0-9,]+)[^<]*base rent[^<]*<[^>]*>[\s\S]*?(\d+)\s*Beds?[^<]*<[^>]*>[\s\S]*?(\d+)\s*Baths?/gi;
-
-  while ((match = altPattern.exec(htmlContent)) !== null) {
-    const priceStr = match[1].replace(/,/g, '');
-    const price = parseInt(priceStr, 10);
-    const beds = parseInt(match[2], 10);
-    const baths = parseInt(match[3], 10);
-
-    // Find address near this price
-    const contextStart = Math.max(0, match.index - 500);
-    const contextEnd = Math.min(htmlContent.length, match.index + 500);
-    const context = htmlContent.substring(contextStart, contextEnd);
-
-    const addressMatch = context.match(/(\d+\s+[NESW](?:orth|outh|ast|est)?\.?\s+\w+(?:\s+\w+)*\s+(?:Street|Avenue|Ave|St|Road|Rd))\s*(?:#([A-Z0-9]+))?/i);
-
-    if (addressMatch) {
-      const address = addressMatch[1].trim();
-      const unit = addressMatch[2];
-
-      const urlMatch = context.match(/https?:\/\/(?:www\.)?streeteasy\.com\/[^"\s<>]+/);
-      const listingUrl = urlMatch ? urlMatch[0].replace(/&amp;/g, '&') : '';
-
-      const imgMatch = context.match(/<img[^>]+src="([^"]+)"/);
-      const imageUrl = imgMatch ? imgMatch[1] : null;
-
-      if (listingUrl && !listings.find(l => l.listingUrl === listingUrl)) {
-        listings.push({
-          address,
-          unit,
-          price,
-          beds,
-          baths,
-          imageUrl,
-          listingUrl,
-        });
-      }
-    }
+  // Also extract all image URLs for matching
+  const imgRegex = /<img[^>]+src="([^"]+)"/gi;
+  const imageUrls: string[] = [];
+  let imgMatch;
+  while ((imgMatch = imgRegex.exec(htmlContent)) !== null) {
+    imageUrls.push(imgMatch[1]);
   }
 
-  return listings;
+  const prompt = `You are extracting apartment listing details from a StreetEasy email HTML.
+
+The email contains ${streetEasyUrls.length} StreetEasy listing URL(s):
+${streetEasyUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}
+
+Available images in email: ${imageUrls.length} total
+
+HTML Content (truncated):
+${htmlContent.substring(0, 15000)}
+
+For EACH StreetEasy URL above, extract the listing details by analyzing the HTML content near that URL. Return ONLY a JSON array with this structure:
+
+[
+  {
+    "address": "Street address without unit (e.g., '264 West 25th Street')",
+    "unit": "Unit number if present (e.g., '4E'), or null",
+    "price": Monthly rent as number without $ or commas (e.g., 8495),
+    "beds": Number of bedrooms as number (e.g., 3),
+    "baths": Number of bathrooms as number (e.g., 2),
+    "imageUrl": "First/best image URL for this specific listing from the email, or null",
+    "listingUrl": "The StreetEasy URL for this listing (must be one from the list above)",
+    "neighborhood": "NYC neighborhood name (e.g., 'Chelsea'), or null"
+  }
+]
+
+Guidelines:
+- Return one object per StreetEasy URL
+- Look for price patterns like "$8,495", "8495/mo", "$8,495 base rent"
+- Look for bed/bath patterns like "3 Beds", "2 Baths", "3 Bed / 2 Bath"
+- Match each listing to its corresponding image (usually appears right before or after the listing details)
+- If you cannot find a specific field, use null
+- Ensure every URL from the list above has a corresponding entry in the array
+
+Return ONLY the JSON array, no other text.`;
+
+  try {
+    const message = await anthropic.messages.create({
+      model: "claude-haiku-4",  // Fast, cheap model
+      max_tokens: 4000,
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+
+    const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+
+    // Extract JSON from response
+    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      console.error("Could not extract JSON array from AI response:", responseText);
+      return [];
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    return parsed as StreetEasyListing[];
+  } catch (error) {
+    console.error("Error parsing StreetEasy listings with AI:", error);
+    return [];
+  }
 }
 
 /**
