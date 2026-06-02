@@ -6,9 +6,16 @@ import { parseApartmentFromEmail, extractActionItemsFromEmail, generateEmailThre
 import { createApartment } from "./apartments";
 import { createOrUpdateBrokerThread } from "./broker-threads";
 import { isBrokerThread } from "@/lib/utils/broker-utils";
+import { parseStreetEasyListings, extractBrokerInfo, type StreetEasyListing } from "@/lib/utils/streeteasy-parser";
 
 export interface ParsedEmail extends GmailMessage {
   relevanceScore?: number; // 0-100, higher = more likely to be apartment listing
+  extractedListings?: StreetEasyListing[]; // Extracted listing details from HTML
+  brokerInfo?: {
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+  };
   parsedData?: {
     address: string | null;
     unit: string | null;
@@ -81,11 +88,27 @@ export async function fetchApartmentEmails(): Promise<ParsedEmail[]> {
       maxResults: 50, // Get more emails to filter
     });
 
-    // Calculate relevance score for each email
-    const emailsWithScores = emails.map((email) => ({
-      ...email,
-      relevanceScore: calculateRelevanceScore(email),
-    }));
+    // Calculate relevance score and extract listings from HTML for each email
+    const emailsWithScores = emails.map((email) => {
+      const relevanceScore = calculateRelevanceScore(email);
+
+      // Extract listing details from HTML if it's a StreetEasy email
+      let extractedListings: StreetEasyListing[] = [];
+      let brokerInfo: { name: string | null; email: string | null; phone: string | null; } | undefined;
+
+      if (email.htmlBody && email.hasStreetEasyLink) {
+        extractedListings = parseStreetEasyListings(email.htmlBody);
+        const extracted = extractBrokerInfo(email.htmlBody, email.body);
+        brokerInfo = (extracted.name || extracted.email || extracted.phone) ? extracted : undefined;
+      }
+
+      return {
+        ...email,
+        relevanceScore,
+        extractedListings: extractedListings.length > 0 ? extractedListings : undefined,
+        brokerInfo,
+      };
+    });
 
     // Sort by relevance score (highest first)
     emailsWithScores.sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0));

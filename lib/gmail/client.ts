@@ -36,6 +36,7 @@ export interface GmailMessage {
   date: Date;
   snippet: string;
   body: string;
+  htmlBody: string; // HTML content for rich emails (StreetEasy, etc.)
   hasStreetEasyLink: boolean;
   streetEasyUrls: string[];
 }
@@ -92,28 +93,55 @@ export async function searchApartmentEmails(
       const dateStr = headers.find((h) => h.name === "Date")?.value || "";
       const date = dateStr ? new Date(dateStr) : new Date();
 
-      // Extract email body
+      // Extract email body (text and HTML)
       let body = "";
+      let htmlBody = "";
+
+      // Helper function to recursively find parts by mime type
+      const findPart = (parts: any[], mimeType: string): any => {
+        for (const part of parts) {
+          if (part.mimeType === mimeType && part.body?.data) {
+            return part;
+          }
+          if (part.parts) {
+            const found = findPart(part.parts, mimeType);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
       if (fullMessage.data.payload?.parts) {
-        // Multipart message
-        const textPart = fullMessage.data.payload.parts.find(
-          (part) => part.mimeType === "text/plain"
-        );
+        // Multipart message - extract both text and HTML
+        const textPart = findPart(fullMessage.data.payload.parts, "text/plain");
+        const htmlPart = findPart(fullMessage.data.payload.parts, "text/html");
+
         if (textPart?.body?.data) {
           body = Buffer.from(textPart.body.data, "base64").toString("utf-8");
         }
+        if (htmlPart?.body?.data) {
+          htmlBody = Buffer.from(htmlPart.body.data, "base64").toString("utf-8");
+        }
       } else if (fullMessage.data.payload?.body?.data) {
         // Simple message
-        body = Buffer.from(
+        const mimeType = fullMessage.data.payload?.mimeType;
+        const content = Buffer.from(
           fullMessage.data.payload.body.data,
           "base64"
         ).toString("utf-8");
+
+        if (mimeType === "text/html") {
+          htmlBody = content;
+        } else {
+          body = content;
+        }
       }
 
-      // Check for StreetEasy URLs
+      // Check for StreetEasy URLs in both text and HTML
       const streetEasyRegex =
-        /https?:\/\/(www\.)?streeteasy\.com\/[^\s<>]*/gi;
-      const streetEasyUrls = body.match(streetEasyRegex) || [];
+        /https?:\/\/(www\.)?streeteasy\.com\/[^\s<>"]*/gi;
+      const combinedContent = body + " " + htmlBody;
+      const streetEasyUrls = [...new Set(combinedContent.match(streetEasyRegex) || [])];
       const hasStreetEasyLink = streetEasyUrls.length > 0;
 
       messages.push({
@@ -125,6 +153,7 @@ export async function searchApartmentEmails(
         date,
         snippet: fullMessage.data.snippet || "",
         body,
+        htmlBody,
         hasStreetEasyLink,
         streetEasyUrls,
       });
@@ -168,28 +197,54 @@ export async function getGmailThread(
       const dateStr = headers.find((h) => h.name === "Date")?.value || "";
       const date = dateStr ? new Date(dateStr) : new Date();
 
-      // Extract email body
+      // Extract email body (text and HTML) - reuse helper function
       let body = "";
+      let htmlBody = "";
+
+      const findPart = (parts: any[], mimeType: string): any => {
+        for (const part of parts) {
+          if (part.mimeType === mimeType && part.body?.data) {
+            return part;
+          }
+          if (part.parts) {
+            const found = findPart(part.parts, mimeType);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
       if (message.payload?.parts) {
-        // Multipart message
-        const textPart = message.payload.parts.find(
-          (part) => part.mimeType === "text/plain"
-        );
+        // Multipart message - extract both text and HTML
+        const textPart = findPart(message.payload.parts, "text/plain");
+        const htmlPart = findPart(message.payload.parts, "text/html");
+
         if (textPart?.body?.data) {
           body = Buffer.from(textPart.body.data, "base64").toString("utf-8");
         }
+        if (htmlPart?.body?.data) {
+          htmlBody = Buffer.from(htmlPart.body.data, "base64").toString("utf-8");
+        }
       } else if (message.payload?.body?.data) {
         // Simple message
-        body = Buffer.from(
+        const mimeType = message.payload?.mimeType;
+        const content = Buffer.from(
           message.payload.body.data,
           "base64"
         ).toString("utf-8");
+
+        if (mimeType === "text/html") {
+          htmlBody = content;
+        } else {
+          body = content;
+        }
       }
 
-      // Check for StreetEasy URLs
+      // Check for StreetEasy URLs in both text and HTML
       const streetEasyRegex =
-        /https?:\/\/(www\.)?streeteasy\.com\/[^\s<>]*/gi;
-      const streetEasyUrls = body.match(streetEasyRegex) || [];
+        /https?:\/\/(www\.)?streeteasy\.com\/[^\s<>"]*/gi;
+      const combinedContent = body + " " + htmlBody;
+      const streetEasyUrls = [...new Set(combinedContent.match(streetEasyRegex) || [])];
       if (streetEasyUrls.length > 0) {
         hasStreetEasyLink = true;
       }
@@ -203,6 +258,7 @@ export async function getGmailThread(
         date,
         snippet: message.snippet || "",
         body,
+        htmlBody,
         hasStreetEasyLink: streetEasyUrls.length > 0,
         streetEasyUrls,
       });

@@ -1,11 +1,12 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { Mail, ExternalLink, Sparkles, Check, Edit, ChevronDown, ChevronUp } from "lucide-react";
+import { Mail, ExternalLink, Sparkles, Check, Edit, ChevronDown, ChevronUp, Home, Bed, Bath, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ParsedEmail } from "@/lib/actions/inbox";
 import { useState } from "react";
+import Image from "next/image";
 
 interface InboxEmailCardProps {
   email: ParsedEmail;
@@ -124,8 +125,88 @@ export function InboxEmailCard({
         {/* Email Snippet */}
         <p className="text-sm text-zinc-700 line-clamp-2">{email.snippet}</p>
 
-        {/* StreetEasy URLs - Extract readable address */}
-        {email.streetEasyUrls.length > 0 && (
+        {/* Extracted Listings from HTML */}
+        {email.extractedListings && email.extractedListings.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-black uppercase tracking-wide">
+              {email.extractedListings.length} {email.extractedListings.length === 1 ? 'Listing' : 'Listings'} in Email:
+            </p>
+            <div className="grid grid-cols-1 gap-3">
+              {email.extractedListings.map((listing, idx) => (
+                <a
+                  key={idx}
+                  href={listing.listingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex gap-3 p-3 border-2 border-black bg-white hover:bg-zinc-50 transition-colors group"
+                >
+                  {/* Listing Image */}
+                  {listing.imageUrl && (
+                    <div className="relative w-24 h-24 flex-shrink-0 bg-zinc-100 border-2 border-black">
+                      <Image
+                        src={listing.imageUrl}
+                        alt={listing.address}
+                        fill
+                        className="object-cover"
+                        sizes="96px"
+                      />
+                    </div>
+                  )}
+
+                  {/* Listing Details */}
+                  <div className="flex-1 min-w-0">
+                    {/* Address */}
+                    <h4 className="font-bold text-sm uppercase tracking-tight mb-1">
+                      {listing.address} {listing.unit && `#${listing.unit}`}
+                    </h4>
+
+                    {/* Neighborhood */}
+                    {listing.neighborhood && (
+                      <p className="text-xs text-zinc-600 uppercase tracking-wide mb-2">
+                        {listing.neighborhood}
+                      </p>
+                    )}
+
+                    {/* Price, Beds, Baths */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {listing.price && (
+                        <div className="flex items-center gap-1">
+                          <DollarSign className="h-3 w-3" />
+                          <span className="font-bold text-sm">
+                            ${listing.price.toLocaleString()}/mo
+                          </span>
+                        </div>
+                      )}
+                      {listing.beds !== null && (
+                        <div className="flex items-center gap-1">
+                          <Bed className="h-3 w-3" />
+                          <span className="text-sm">{listing.beds} Beds</span>
+                        </div>
+                      )}
+                      {listing.baths !== null && (
+                        <div className="flex items-center gap-1">
+                          <Bath className="h-3 w-3" />
+                          <span className="text-sm">{listing.baths} Baths</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* External link icon */}
+                    <div className="mt-2">
+                      <div className="inline-flex items-center gap-1 text-xs text-blue-700 group-hover:text-blue-800">
+                        <ExternalLink className="h-3 w-3" />
+                        <span>View on StreetEasy</span>
+                      </div>
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Fallback: Show URLs if no extracted listings */}
+        {(!email.extractedListings || email.extractedListings.length === 0) && email.streetEasyUrls.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold text-zinc-600 uppercase tracking-wide">
               Listings in Email:
@@ -133,14 +214,12 @@ export function InboxEmailCard({
             <div className="space-y-1">
               {email.streetEasyUrls.map((url, idx) => {
                 // Extract readable address from URL
-                // e.g., /building/225-eighth-avenue-chelsea/2d -> 225 Eighth Avenue #2D
                 const pathParts = new URL(url).pathname.split('/').filter(Boolean);
                 let displayText = "View Listing";
 
                 if (pathParts[0] === 'building' && pathParts[1]) {
                   const buildingSlug = pathParts[1];
                   const unit = pathParts[2] ? `#${pathParts[2].toUpperCase()}` : '';
-                  // Convert slug: 225-eighth-avenue-chelsea -> 225 Eighth Avenue
                   const addressParts = buildingSlug.split('-');
                   const streetNumber = addressParts[0];
                   const streetName = addressParts.slice(1)
