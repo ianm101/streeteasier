@@ -29,7 +29,10 @@ export async function parseStreetEasyListings(htmlContent: string): Promise<Stre
     url.replace(/&amp;/g, '&')
   );
 
+  console.log(`[StreetEasy Parser] Found ${streetEasyUrls.length} StreetEasy URLs in HTML`);
+
   if (streetEasyUrls.length === 0) {
+    console.log('[StreetEasy Parser] No StreetEasy URLs found, returning empty array');
     return [];
   }
 
@@ -77,6 +80,8 @@ Guidelines:
 Return ONLY the JSON array, no other text.`;
 
   try {
+    console.log(`[StreetEasy Parser] Calling Claude Haiku to parse ${streetEasyUrls.length} listings...`);
+
     const message = await anthropic.messages.create({
       model: "claude-haiku-4",  // Fast, cheap model
       max_tokens: 4000,
@@ -89,18 +94,20 @@ Return ONLY the JSON array, no other text.`;
     });
 
     const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+    console.log('[StreetEasy Parser] LLM response received, length:', responseText.length);
 
     // Extract JSON from response
     const jsonMatch = responseText.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
-      console.error("Could not extract JSON array from AI response:", responseText);
+      console.error("[StreetEasy Parser] Could not extract JSON array from AI response:", responseText);
       return [];
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
+    console.log(`[StreetEasy Parser] Successfully parsed ${parsed.length} listings:`, parsed);
     return parsed as StreetEasyListing[];
   } catch (error) {
-    console.error("Error parsing StreetEasy listings with AI:", error);
+    console.error("[StreetEasy Parser] Error parsing StreetEasy listings with AI:", error);
     return [];
   }
 }

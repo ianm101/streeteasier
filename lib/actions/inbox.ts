@@ -99,10 +99,17 @@ export async function fetchApartmentEmails(): Promise<ParsedEmail[]> {
         let brokerInfo: { name: string | null; email: string | null; phone: string | null; } | undefined;
 
         if (email.htmlBody && email.hasStreetEasyLink) {
+          console.log(`[Inbox] Processing StreetEasy email: "${email.subject}"`);
+          console.log(`[Inbox] HTML body length: ${email.htmlBody.length}, hasStreetEasyLink: ${email.hasStreetEasyLink}`);
+
           // Parse listings with LLM (async)
           extractedListings = await parseStreetEasyListings(email.htmlBody);
+          console.log(`[Inbox] Extracted ${extractedListings.length} listings for email: "${email.subject}"`);
+
           const extracted = extractBrokerInfo(email.htmlBody, email.body);
           brokerInfo = (extracted.name || extracted.email || extracted.phone) ? extracted : undefined;
+        } else {
+          console.log(`[Inbox] Skipping email "${email.subject}" - htmlBody: ${!!email.htmlBody}, hasStreetEasyLink: ${email.hasStreetEasyLink}`);
         }
 
         return {
